@@ -1,0 +1,72 @@
+services:
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - microservices-network
+
+  productcatalogservice:
+    build:
+      context: ./src/productcatalogservice
+    container_name: productcatalogservice
+    ports:
+      - "3550:3550"
+    networks:
+      - microservices-network
+
+  currencyservice:
+    build:
+      context: ./src/currencyservice
+    container_name: currencyservice
+    ports:
+      - "7000:7000"
+    environment:
+      PORT: 7000
+      DISABLE_PROFILER: "1"
+      ENABLE_TRACING: "0"
+    networks:
+      - microservices-network
+
+  cartservice:
+    build:
+      context: ./src/cartservice/src
+    container_name: cartservice
+    ports:
+      - "7070:7070"
+    depends_on:
+      - redis
+    environment:
+      PORT: 7070
+      REDIS_ADDR: redis:6379
+    networks:
+      - microservices-network
+
+  frontend:
+    build:
+      context: ./src/frontend
+    container_name: frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - productcatalogservice
+      - currencyservice
+      - cartservice
+    environment:
+      PRODUCT_CATALOG_SERVICE_ADDR: productcatalogservice:3550
+      CURRENCY_SERVICE_ADDR: currencyservice:7000
+      CART_SERVICE_ADDR: cartservice:7070
+
+      RECOMMENDATION_SERVICE_ADDR: recommendationservice:8080
+      SHIPPING_SERVICE_ADDR: shippingservice:50051
+      CHECKOUT_SERVICE_ADDR: checkoutservice:5050
+      AD_SERVICE_ADDR: adservice:9555
+      PAYMENT_SERVICE_ADDR: paymentservice:50052
+      EMAIL_SERVICE_ADDR: emailservice:5000
+      SHOPPING_ASSISTANT_SERVICE_ADDR: shoppingassistantservice:8080
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+    driver: bridge

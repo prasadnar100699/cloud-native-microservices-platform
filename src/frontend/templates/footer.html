@@ -1,0 +1,49 @@
+{{ define "footer" }}
+
+<footer class="py-5 bg-dark text-light mt-5">
+    <div class="container text-center">
+
+        <h5 class="mb-3">Cloud Native Microservices Platform</h5>
+
+        <p class="mb-2">
+            Production-grade cloud-native microservices platform built for
+            DevOps, Kubernetes, GitOps, Observability, and Platform Engineering.
+        </p>
+
+        <p class="mb-3">
+            Powered by Docker, Kubernetes, Terraform, Helm, ArgoCD, Prometheus,
+            Grafana, and OpenTelemetry.
+        </p>
+
+        <small class="d-block mb-2">
+            © 2026 Prasad Narkhede — Cloud & DevOps Engineering Platform
+        </small>
+
+        <small class="text-muted">
+            {{ if $.session_id }}
+                session-id: {{ $.session_id }}
+            {{ end }}
+
+            {{ if $.request_id }}
+                | request-id: {{ $.request_id }}
+            {{ end }}
+        </small>
+
+        <div class="mt-3">
+            <small class="text-secondary">
+                Environment: Local Development
+            </small>
+        </div>
+
+    </div>
+</footer>
+
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"
+    integrity="sha384-smHYKdLADwkXOn1EmN1qk/HfnUcbVRZyYmZ4qpPea6sjB/pTJ0euyQp0Mk8ck+5T"
+    crossorigin="anonymous">
+</script>
+
+</body>
+</html>
+
+{{ end }}

@@ -1,0 +1,51 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Go
+bin/
+
+# .NET
+bin/
+obj/
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Kubernetes Secrets
+secrets.yaml
+
+# Build
+dist/
+build/
+
+# Coverage
+coverage/
+
+# Temp
+tmp/
+temp/
