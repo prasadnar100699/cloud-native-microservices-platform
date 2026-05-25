@@ -54,7 +54,7 @@ func init() {
 }
 
 func main() {
-	if os.Getenv("DISABLE_TRACING") == "" {
+	if os.Getenv("ENABLE_TRACING") == "1" {
 		log.Info("Tracing enabled, but temporarily unavailable")
 		log.Info("See https://github.com/GoogleCloudPlatform/microservices-demo/issues/422 for more info.")
 		go initTracing()
@@ -62,7 +62,7 @@ func main() {
 		log.Info("Tracing disabled.")
 	}
 
-	if os.Getenv("DISABLE_PROFILER") == "" {
+	if os.Getenv("DISABLE_PROFILER") != "1" {
 		log.Info("Profiling enabled.")
 		go initProfiling("shippingservice", "1.0.0")
 	} else {

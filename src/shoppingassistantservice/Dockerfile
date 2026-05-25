@@ -1,3 +1,4 @@
+# src/shoppingassistantservice/Dockerfile
 ARG BUILDPLATFORM=linux/amd64
 
 FROM --platform=$BUILDPLATFORM python:3.14.3-slim@sha256:fb83750094b46fd6b8adaa80f66e2302ecbe45d513f6cece637a841e1025b4ca AS base
