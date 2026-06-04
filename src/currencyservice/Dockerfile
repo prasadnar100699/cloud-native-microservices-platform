@@ -1,28 +1,31 @@
-# src/currencyservice/Dockerfile
 ARG BUILDPLATFORM=linux/amd64
 
-FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     python3 \
     make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+    g++
 
 WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
-FROM node:20-bookworm-slim
+COPY . .
+
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
-COPY --from=builder /usr/src/app/node_modules ./node_modules
+ENV NODE_ENV=production
 
+COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY . .
 
 EXPOSE 7000
 
-ENTRYPOINT ["node", "server.js"]
+USER node
+
+CMD ["node", "server.js"]
