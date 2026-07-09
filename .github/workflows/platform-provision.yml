@@ -40,7 +40,7 @@ jobs:
       # EXPERT PATTERN: Initialize with a local backend first if bucket doesn't exist,
       # then migrate the state to S3 seamlessly using partial configuration flags.
       # This completely bypasses the chicken-and-egg problem natively!
-      幕 - name: Production-Grade Backend Initialization
+      - name: Production-Grade Backend Initialization
         run: |
           cd infrastructure/terraform/environments/dev
           
