@@ -46,11 +46,15 @@ jobs:
           
           echo "Checking if remote S3 infrastructure state bucket exists..."
           if ! aws s3api head-bucket --bucket prasad-ops-tfstate-bucket 2>/dev/null; then
-            echo "Bucket not found. Bootstrapping state bucket natively via AWS CLI engine..."
+            echo "Bucket not found. Bootstrapping state bucket..."
             aws s3api create-bucket --bucket prasad-ops-tfstate-bucket --region us-east-1
-            aws s3api put-bucket-encryption --bucket prasad-ops-tfstate-bucket --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]}'
-            
-            echo "Creating high-availability distributed state locking table..."
+          else
+            echo "Bucket already exists. Skipping creation."
+          fi
+
+          echo "Checking for DynamoDB State Locking Table..."
+          if ! aws dynamodb describe-table --table-name terraform-lock-table 2>/dev/null; then
+            echo "Table missing. Creating DynamoDB lock index..."
             aws dynamodb create-table \
               --table-name terraform-lock-table \
               --attribute-definitions AttributeName=LockID,AttributeType=S \
@@ -60,6 +64,8 @@ jobs:
               
             echo "Waiting for DynamoDB indexing tables to settle..."
             aws dynamodb wait table-exists --table-name terraform-lock-table
+          else
+            echo "DynamoDB lock table already exists."
           fi
 
           # Standard production-grade backend initialization
