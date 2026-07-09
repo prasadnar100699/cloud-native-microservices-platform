@@ -1,0 +1,35 @@
+global:
+  defaultReplicas: 1
+  defaultTag: "latest"
+
+services:
+  redis:
+    replicas: 1
+    port: 6379
+    image:
+      repository: "redis"
+      tag: "7-alpine"
+  
+  cartservice:
+    replicas: 2
+    port: 7070
+    image:
+      repository: "your-registry/cartservice"
+    env:
+      REDIS_ADDR: "redis:6379"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "400m"
+        memory: "512Mi"
+
+  frontend:
+    replicas: 2
+    port: 8080
+    image:
+      repository: "your-registry/frontend"
+    env:
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      CART_SERVICE_ADDR: "cartservice:7070"

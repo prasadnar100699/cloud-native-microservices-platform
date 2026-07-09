@@ -1,0 +1,55 @@
+{{- range $serviceName, $serviceSpec := .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $serviceName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $serviceName }}
+    project: {{ $.Chart.Name }}
+spec:
+  replicas: {{ $serviceSpec.replicas | default $.Values.global.defaultReplicas }}
+  selector:
+    matchLabels:
+      app: {{ $serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ $serviceName }}
+    spec:
+      containers:
+        - name: {{ $serviceName }}
+          image: "{{ $serviceSpec.image.repository }}:{{ $serviceSpec.image.tag | default $.Values.global.defaultTag }}"
+          imagePullPolicy: {{ $serviceSpec.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ $serviceSpec.port }}
+          {{- if $serviceSpec.env }}
+          env:
+            {{- range $envName, $envValue := $serviceSpec.env }}
+            - name: {{ $envName }}
+              value: {{ $envValue | quote }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- if $serviceSpec.resources }}
+            requests:
+              cpu: {{ dig "requests" "cpu" "100m" $serviceSpec.resources | quote }}
+              memory: {{ dig "requests" "memory" "128Mi" $serviceSpec.resources | quote }}
+            limits:
+              cpu: {{ dig "limits" "cpu" "500m" $serviceSpec.resources | quote }}
+              memory: {{ dig "limits" "memory" "512Mi" $serviceSpec.resources | quote }}
+            {{- else }}
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            {{- end }}
+          # DevSecOps Hardening: Read-only root filesystem where applicable
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 10001
+---
+{{- end }}
