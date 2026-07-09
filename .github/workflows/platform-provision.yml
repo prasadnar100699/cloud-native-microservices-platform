@@ -1,0 +1,92 @@
+name: "Enterprise Platform Deployment Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose whether to Deploy or Destroy the entire infrastructure'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+          - apply
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  infrastructure:
+    name: "Orchestrate AWS Infrastructure"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform Core Engine
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Initialize & Validate Modules
+        run: |
+          cd infrastructure/terraform/environments/dev
+          terraform init
+          terraform validate
+
+      - name: Execute Terraform Operational Run
+        run: |
+          cd infrastructure/terraform/environments/dev
+          if [ "${{ github.event.inputs.action }}" == "apply" ]; then
+            terraform apply -auto-approve
+          else
+            terraform destroy -auto-approve
+          fi
+
+  gitops-sync:
+    name: "Bootstrap GitOps Engine"
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'apply'
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Connect context to new AWS EKS Cluster
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name enterprise-platform-eks-dev
+
+      - name: Install & Bootstrap ArgoCD Engine
+        run: |
+          kubectl create namespace argocd || true
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          echo "Waiting for ArgoCD API Server readiness..."
+          kubectl wait --namespace argocd --for=condition=ready pod -l app.kubernetes.io/name=argocd-server --timeout=300s
+
+      - name: Apply Declarative Platform Application Link
+        run: |
+          # Detect active branch context dynamically to apply the accurate operational app file
+          if [ "${{ github.ref_name }}" == "main" ]; then
+            kubectl apply -f argocd/environments/prod-app.yaml
+          else
+            kubectl apply -f argocd/environments/dev-app.yaml
+          fi
+          echo "GitOps Engine linked successfully. Microservices convergence initiated."
