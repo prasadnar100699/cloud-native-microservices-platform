@@ -31,13 +31,38 @@ obj/
 .DS_Store
 Thumbs.db
 
-# Terraform
+# ==========================================
+# Enterprise Production-Grade Terraform Blocks
+# ==========================================
+# Ignore all local CLI configuration and cache files
+.terraform/
+.terraform.lock.hcl
+
+# Ignore all local state history files (since we use an S3 Remote Backend)
 *.tfstate
 *.tfstate.*
-.terraform/
 
-# Kubernetes Secrets
+# Ignore crash logs or variable files containing active cloud tokens
+crash.log
+*.tfvars
+*.tfvars.json
+
+# Allow overriding variables explicitly if using standard template examples
+!example.tfvars
+!*.tfvars.example
+
+# ==========================================
+# Kubernetes & Helm Package Elements
+# ==========================================
+# Ignore local chart dependency archives and lint temporary caches
+.helm/
+helm/microservices-platform/charts/
+helm/microservices-platform/tmp/
 secrets.yaml
+
+# Explicitly ensure GitHub Action configurations are NEVER ignored
+!.github/
+!.github/workflows/
 
 # Build
 dist/

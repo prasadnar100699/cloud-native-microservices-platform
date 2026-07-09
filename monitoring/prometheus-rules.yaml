@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-latency-alerts
+  namespace: monitoring
+  labels:
+    role: alert-rules
+spec:
+  groups:
+    - name: MicroservicePerformance
+      rules:
+        - alert: HighgRPCLatency
+          expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket[5m])) by (le, service)) > 0.2
+          for: 2m
+          labels:
+            severity: critical
+            tier: platform
+          annotations:
+            summary: "gRPC service {{ $labels.service }} is exhibiting p99 latency above 200ms"
+            description: "Immediate investigation required. Upstream dependencies for checkout flow are degrading."
