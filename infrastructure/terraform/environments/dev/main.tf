@@ -22,3 +22,16 @@ module "eks" {
   private_subnets = module.vpc.private_subnets
   instance_types  = ["t3.medium"]
 }
+
+# ==============================================================================
+# Declarative State Imports (Bypasses EntityAlreadyExists Errors)
+# ==============================================================================
+import {
+  to = module.eks.aws_iam_role.cluster
+  id = "enterprise-platform-dev-eks-cluster-role"
+}
+
+import {
+  to = module.eks.aws_iam_role.nodes
+  id = "enterprise-platform-dev-eks-node-role"
+}
