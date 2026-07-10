@@ -9,121 +9,182 @@ locals {
   }
 }
 
-# ----------------------------------------------------------------------------------------
-# 1. IAM ROLE FOR EKS CONTROL PLANE
-# ----------------------------------------------------------------------------------------
+################################################################################
+# IAM ROLE - EKS CONTROL PLANE
+################################################################################
+
 resource "aws_iam_role" "cluster" {
   name = "${var.project_name}-${var.environment}-eks-cluster-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "eks.amazonaws.com"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "eks.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
       }
-    }]
+    ]
   })
 
   tags = local.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+resource "aws_iam_role_policy_attachment" "cluster_policy" {
   role       = aws_iam_role.cluster.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
-# ----------------------------------------------------------------------------------------
-# 2. KMS KEY FOR ENVELOPE ENCRYPTION OF KUBERNETES SECRETS
-# ----------------------------------------------------------------------------------------
+################################################################################
+# KMS
+################################################################################
+
 resource "aws_kms_key" "eks" {
-  description             = "KMS Key for EKS Secrets Envelope Encryption"
+  description             = "KMS key for EKS secret encryption"
   deletion_window_in_days = 7
   enable_key_rotation     = true
 
   tags = local.common_tags
 }
 
-# ----------------------------------------------------------------------------------------
-# 3. THE EKS CONTROL PLANE
-# ----------------------------------------------------------------------------------------
+resource "aws_kms_alias" "eks" {
+  name          = "alias/${var.project_name}-${var.environment}-eks"
+  target_key_id = aws_kms_key.eks.key_id
+}
+
+################################################################################
+# CLOUDWATCH LOG GROUP
+################################################################################
+
+resource "aws_cloudwatch_log_group" "eks" {
+  name              = "/aws/eks/${var.project_name}-eks-${var.environment}/cluster"
+  retention_in_days = 30
+
+  tags = local.common_tags
+}
+
+################################################################################
+# EKS CLUSTER
+################################################################################
+
 resource "aws_eks_cluster" "this" {
   name     = "${var.project_name}-eks-${var.environment}"
   role_arn = aws_iam_role.cluster.arn
 
+  version = "1.30"
+
   vpc_config {
-    subnet_ids              = var.private_subnets
-    endpoint_private_access = true  # Enforces node-to-control-plane communication over private network
-    endpoint_public_access  = false # DevSecOps hardening: control plane hidden from the open internet
+    subnet_ids = var.private_subnets
+
+    endpoint_private_access = true
+
+    endpoint_public_access = true
+
+    public_access_cidrs = var.public_access_cidrs
   }
 
   encryption_config {
     provider {
       key_arn = aws_kms_key.eks.arn
     }
-    resources = ["secrets"]
+
+    resources = [
+      "secrets"
+    ]
   }
 
-  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-
-  depends_on = [
-    aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy
+  enabled_cluster_log_types = [
+    "api",
+    "audit",
+    "authenticator",
+    "controllerManager",
+    "scheduler"
   ]
 
-  tags = local.common_tags
+  depends_on = [
+    aws_cloudwatch_log_group.eks,
+    aws_iam_role_policy_attachment.cluster_policy
+  ]
+
+  tags = merge(
+    local.common_tags,
+    {
+      Name = "${var.project_name}-eks-${var.environment}"
+    }
+  )
 }
 
-# ----------------------------------------------------------------------------------------
-# 4. IAM ROLE FOR MANAGED WORKER NODES
-# ----------------------------------------------------------------------------------------
+################################################################################
+# NODE IAM ROLE
+################################################################################
+
 resource "aws_iam_role" "nodes" {
   name = "${var.project_name}-${var.environment}-eks-node-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
       }
-    }]
+    ]
   })
 
   tags = local.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "nodes_AmazonEKSWorkerNodePolicy" {
+resource "aws_iam_role_policy_attachment" "worker" {
+  role       = aws_iam_role.nodes.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.nodes.name
 }
 
-resource "aws_iam_role_policy_attachment" "nodes_AmazonEKS_CNI_Policy" {
+resource "aws_iam_role_policy_attachment" "cni" {
+  role       = aws_iam_role.nodes.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.nodes.name
 }
 
-resource "aws_iam_role_policy_attachment" "nodes_AmazonEC2ContainerRegistryReadOnly" {
+resource "aws_iam_role_policy_attachment" "ecr" {
+  role       = aws_iam_role.nodes.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.nodes.name
 }
 
-# ----------------------------------------------------------------------------------------
-# 5. AWS MANAGED NODE GROUP (Compute Tier)
-# ----------------------------------------------------------------------------------------
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.nodes.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+################################################################################
+# MANAGED NODE GROUP
+################################################################################
+
 resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${var.project_name}-managed-nodes-${var.environment}"
-  node_role_arn   = aws_iam_role.nodes.arn
-  subnet_ids      = var.private_subnets
+
+  node_role_arn = aws_iam_role.nodes.arn
+
+  subnet_ids = var.private_subnets
 
   instance_types = var.instance_types
 
+  capacity_type = "ON_DEMAND"
+
   scaling_config {
-    desired_size = 3 # 3 services minimum to handle 11 polyglot microservices smoothly
-    max_size     = 5
+    desired_size = 3
     min_size     = 2
+    max_size     = 5
   }
 
   update_config {
@@ -131,9 +192,10 @@ resource "aws_eks_node_group" "this" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.nodes_AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.nodes_AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.nodes_AmazonEC2ContainerRegistryReadOnly,
+    aws_iam_role_policy_attachment.worker,
+    aws_iam_role_policy_attachment.cni,
+    aws_iam_role_policy_attachment.ecr,
+    aws_iam_role_policy_attachment.ssm
   ]
 
   tags = merge(
@@ -144,15 +206,24 @@ resource "aws_eks_node_group" "this" {
   )
 }
 
-# ----------------------------------------------------------------------------------------
-# 6. OIDC PROVIDER FOR IRSA (IAM ROLES FOR SERVICE ACCOUNTS)
-# ----------------------------------------------------------------------------------------
+################################################################################
+# OIDC PROVIDER
+################################################################################
+
 data "tls_certificate" "eks" {
   url = aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.this.identity[0].oidc[0].issuer
+  url = aws_eks_cluster.this.identity[0].oidc[0].issuer
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+
+  thumbprint_list = [
+    data.tls_certificate.eks.certificates[0].sha1_fingerprint
+  ]
+
+  tags = local.common_tags
 }

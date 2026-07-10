@@ -28,3 +28,9 @@ variable "instance_types" {
   description = "EC2 Instance types for managed node groups"
   default     = ["t3.medium"]
 }
+
+variable "public_access_cidrs" {
+  description = "CIDR blocks allowed to access the EKS public API endpoint"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
