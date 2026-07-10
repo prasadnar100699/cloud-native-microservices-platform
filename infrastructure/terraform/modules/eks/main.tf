@@ -12,7 +12,6 @@ locals {
 ################################################################################
 # IAM ROLE - EKS CONTROL PLANE
 ################################################################################
-
 resource "aws_iam_role" "cluster" {
   name = "${var.project_name}-${var.environment}-eks-cluster-role"
 
@@ -66,6 +65,10 @@ resource "aws_cloudwatch_log_group" "eks" {
   retention_in_days = 30
 
   tags = local.common_tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 ################################################################################
